@@ -86,8 +86,23 @@ textarea,input{font-family:inherit}
 .tira{display:flex;flex-wrap:wrap;gap:4px;align-items:center;max-height:56px;overflow:hidden}
 .cuadro{width:11px;height:11px;border-radius:2px;background:var(--senal);animation:pop .3s cubic-bezier(.2,.9,.3,1.4) both}
 @keyframes pop{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
-.nube{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:baseline;justify-content:center;padding:10px 0}
-.nube span{font-family:var(--display);line-height:1.05;animation:sube .35s ease both}
+.nube{display:flex;flex-wrap:wrap;gap:6px 20px;align-items:baseline;justify-content:center}
+.nube span{font-family:var(--display);line-height:1.1;animation:sube .35s ease both}
+.nube-centro{height:100%;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:6px 0}
+.nube-lider{text-align:center;padding:6px 0}
+.nube-lider span{display:block;font-family:var(--display);font-weight:800;letter-spacing:-.03em;
+  font-size:clamp(46px,8.5vw,124px);line-height:1;color:var(--senal);animation:sube .4s ease both}
+.nube-cnt{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--tenue);margin-top:8px}
+.seg{display:grid;place-items:center;font-family:var(--mono);font-size:12.5px;font-weight:600;
+  color:#121B2C;overflow:hidden;white-space:nowrap}
+.tapado{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:14px}
+.tapado .marco{width:64px;height:64px;border-radius:12px;box-shadow:inset 0 0 0 2px var(--borde);
+  display:grid;place-items:center}
+.tapado .marco b{width:22px;height:3px;background:var(--tenue);border-radius:2px;display:block}
+.tapado h3{font-family:var(--display);font-weight:800;font-size:26px;margin:0}
+.tapado p{color:var(--tenue);font-size:15px;margin:0;max-width:340px;line-height:1.5}
 @keyframes sube{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
 .tarjetas{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-content:start}
 .tarjeta{background:var(--sup2);border-left:3px solid var(--borde);border-radius:0 8px 8px 0;
@@ -136,9 +151,9 @@ const PREGUNTAS = [
     id: "p1",
     tipo: "nube",
     titulo: "El nuevo escenario para la agricultura y la ganadería",
-    texto: "¿Qué palabras asocia con este nuevo escenario?",
-    ayuda: "Escriba hasta 3 palabras separadas por coma.",
-    limite: 90
+    texto: "¿Qué palabra asocia con este nuevo escenario?",
+    ayuda: "Una sola palabra.",
+    limite: 24
   },
   {
     id: "p2",
@@ -362,10 +377,20 @@ function pintarParticipante() {
       <button class="btn btn-ancho" id="enviar" ${listos < total ? "disabled" : ""}>Enviar respuestas</button></div>`;
   }
 
-  if (q.tipo === "nube" || q.tipo === "texto") {
+  if (q.tipo === "nube") {
     const v = borrador[q.id] || "";
-    cuerpo = `<textarea class="escritura" id="txt" rows="${q.tipo === "nube" ? 2 : 6}"
-        maxlength="${q.limite}" placeholder="${q.tipo === "nube" ? "Ej: financiamiento, medición, mercados" : "Escriba su respuesta"}">${esc(v)}</textarea>
+    cuerpo = `<input type="text" class="escritura" id="txt" maxlength="${q.limite}"
+        autocomplete="off" autocapitalize="none" spellcheck="false"
+        placeholder="Ej: financiamiento" value="${esc(v)}"
+        style="text-align:center;font-size:22px;font-weight:600">
+      <div class="contador"><span id="cnt">${v.length}</span>/${q.limite}</div>
+      <button class="btn btn-ancho" id="enviar" ${v.trim() ? "" : "disabled"}>Enviar respuesta</button>`;
+  }
+
+  if (q.tipo === "texto") {
+    const v = borrador[q.id] || "";
+    cuerpo = `<textarea class="escritura" id="txt" rows="6" maxlength="${q.limite}"
+        placeholder="Escriba su respuesta">${esc(v)}</textarea>
       <div class="contador"><span id="cnt">${v.length}</span>/${q.limite}</div>
       <button class="btn btn-ancho" id="enviar" ${v.trim() ? "" : "disabled"}>Enviar respuesta</button>`;
   }
@@ -389,11 +414,21 @@ function pintarParticipante() {
   });
 
   const txt = $("#txt");
-  if (txt) txt.oninput = () => {
-    borrador[q.id] = txt.value;
-    $("#cnt").textContent = txt.value.length;
-    $("#enviar").disabled = !txt.value.trim();
-  };
+  if (txt) {
+    txt.oninput = () => {
+      if (q.tipo === "nube") {
+        // una sola palabra: se descartan espacios, comas y signos
+        const limpio = txt.value.replace(/[^\p{L}\p{M}\-]/gu, "");
+        if (limpio !== txt.value) txt.value = limpio;
+      }
+      borrador[q.id] = txt.value;
+      $("#cnt").textContent = txt.value.length;
+      $("#enviar").disabled = !txt.value.trim();
+    };
+    if (q.tipo === "nube") txt.onkeydown = e => {
+      if (e.key === "Enter" && txt.value.trim()) $("#enviar").click();
+    };
+  }
 
   const btn = $("#enviar");
   if (btn) btn.onclick = () => {
@@ -426,7 +461,7 @@ async function mandar(q, partes) {
    6. Vista del presentador
    ═══════════════════════════════════════════════════════════════ */
 
-let clave = "", filas = [], ultimoId = 0, consolaAbierta = true;
+let clave = "", filas = [], ultimoId = 0, consolaAbierta = true, mostrar = true;
 
 function agregados(qid) {
   const q = preguntaPorId(qid);
@@ -464,10 +499,11 @@ function pintarResultados(q) {
         return { n, pct: n / t * 100, color: e.color };
       });
       return `<div class="fila-barra">
-        <div class="fila-cab"><span class="fila-txt">${esc(it.texto)}</span>
-          <span class="fila-num">${g.length}</span></div>
-        <div class="pista" style="height:16px">
-          ${segs.map(s => `<div class="relleno" style="width:${s.pct}%;background:${s.color}"></div>`).join("")}
+        <div class="fila-cab"><span class="fila-txt">${esc(it.texto)}</span></div>
+        <div class="pista" style="height:28px">
+          ${segs.filter(s => s.n).map(s =>
+            `<div class="relleno seg" style="width:${s.pct}%;background:${s.color}"
+              >${s.pct >= 8 ? Math.round(s.pct) + "%" : ""}</div>`).join("")}
         </div></div>`;
     }).join("");
     return leyenda + cuerpo;
@@ -477,11 +513,28 @@ function pintarResultados(q) {
     const pal = contarPalabras(f.map(r => r.valor));
     if (!pal.length) return "";
     const tope = pal[0][1];
-    return '<div class="nube">' + pal.map(([w, n], i) => {
+    const [lider, nLider] = pal[0];
+
+    // el resto se reparte arriba y abajo, con las más votadas cerca del centro
+    const arriba = [], abajo = [];
+    pal.slice(1).forEach((p, i) => (i % 2 ? abajo : arriba).push(p));
+    arriba.reverse();
+
+    const chico = ([w, n]) => {
       const k = Math.sqrt(n / tope);
-      return `<span title="${n}" style="font-size:${Math.round(17 + k * 52)}px;font-weight:${k > .7 ? 800 : 500};
-        color:${i === 0 ? "var(--senal)" : k > .55 ? "var(--tinta)" : "var(--aire)"};opacity:${(.45 + k * .55).toFixed(2)}">${esc(w)}</span>`;
-    }).join("") + "</div>";
+      return `<span style="font-size:${Math.round(15 + k * 34)}px;font-weight:${k > .7 ? 800 : 500};
+        color:${k > .6 ? "var(--tinta)" : "var(--aire)"};opacity:${(.45 + k * .55).toFixed(2)}"
+        title="${n}">${esc(w)}</span>`;
+    };
+
+    return `<div class="nube-centro">
+      <div class="nube">${arriba.map(chico).join("")}</div>
+      <div class="nube-lider">
+        <span>${esc(lider)}</span>
+        <div class="nube-cnt">${nLider} ${nLider === 1 ? "mención" : "menciones"}</div>
+      </div>
+      <div class="nube">${abajo.map(chico).join("")}</div>
+    </div>`;
   }
 
   const lista = f.slice().reverse().slice(0, 60);
@@ -505,7 +558,12 @@ function pintarPresentador() {
     </div>
     ${q.titulo ? `<div class="etiqueta" style="color:var(--senal);margin-top:16px">${esc(q.titulo)}</div>` : ""}
     <h1 class="titulo-grande">${esc(q.texto)}</h1>
-    <div class="resultados">${pintarResultados(q)}</div>
+    <div class="resultados">${mostrar ? pintarResultados(q) : `
+      <div class="tapado">
+        <div class="marco"><b></b></div>
+        <h3>Resultados ocultos</h3>
+        <p>Las respuestas se siguen recibiendo. Se muestran cuando el presentador las habilite.</p>
+      </div>`}</div>
     <div style="margin-top:18px">
       <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:9px">
         <span style="font-family:var(--display);font-weight:800;font-size:32px">${personas}</span>
@@ -533,6 +591,8 @@ function pintarPresentador() {
         <div class="acciones">
           <button class="btn ${estado.abierta ? "btn-f" : ""}" id="toggleVoto" ${estado.pregunta_activa ? "" : "disabled"}>
             ${estado.abierta ? "Cerrar votación" : "Abrir votación"}</button>
+          <button class="btn ${mostrar ? "btn-f" : ""}" id="verRes" ${estado.pregunta_activa ? "" : "disabled"}>
+            ${mostrar ? "Ocultar resultados" : "Mostrar resultados"}</button>
           <button class="btn btn-f" id="csv" ${filas.length ? "" : "disabled"}>Descargar CSV (${filas.length})</button>
           <div style="flex:1"></div>
           <button class="btn btn-r" id="nueva">Nueva sesión</button>
@@ -548,6 +608,7 @@ function pintarPresentador() {
     await escribirEstado(clave, estado.pregunta_activa, !estado.abierta, null);
     estado = await leerEstado(); pintarPresentador();
   };
+  $("#verRes").onclick = () => { mostrar = !mostrar; pintarPresentador(); };
   $("#csv").onclick = descargarCSV;
   $("#nueva").onclick = async () => {
     if (!confirm("Se inicia una sesión nueva y la pantalla queda en blanco.\n\n¿Ya descargaste el CSV de esta sesión?")) return;
@@ -606,6 +667,9 @@ function pedirClave() {
    ═══════════════════════════════════════════════════════════════ */
 
 async function cicloPresentador() {
+  document.addEventListener("keydown", e => {
+    if (e.key === "o" || e.key === "O") { mostrar = !mostrar; pintarPresentador(); }
+  });
   const tick = async () => {
     const nuevas = await traerNuevas(estado.codigo, ultimoId);
     if (nuevas.length) {
